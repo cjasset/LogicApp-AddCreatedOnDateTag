@@ -19,4 +19,4 @@ Many organizations struggle with tracking resource sprawl in Azure.  In many cas
 
 Click the Deploy To Azure button below.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https://raw.githubusercontent.com/cjasset/LogicApp-AddCreatedOnDateTag/main/LogicApp-AddCreatedOnDateTag.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https:%3A%2F%2Fraw.githubusercontent.com%2cjasset%2LogicApp-AddCreatedOnDateTag%2main%2LogicApp-AddCreatedOnDateTag.json)
