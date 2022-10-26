@@ -1,0 +1,398 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "logicAppName": {
+            "defaultValue": "AddCreatedByTag",
+            "type": "String"
+        },
+        "location": {
+            "defaultValue": "centralus",
+            "type": "String"
+        },
+        "connections_arm_name": {
+            "defaultValue": "arm",
+            "type": "String"
+        },
+        "connections_arm_displayname": {
+            "defaultValue": "arm",
+            "type": "String"
+        },
+        "roleAssignmentSubID": {
+            "defaultValue": "[subscription().subscriptionId]",
+            "type": "String"
+        },
+        "roleNameGuid": {
+            "type": "string",
+            //"defaultValue": "[newGuid()]",
+            "defaultValue": "[guid(deployment().name, subscription().subscriptionId)]",
+            "metadata": {
+                "description": "A new GUID used to identify the role assignment"
+            }
+        }
+    },
+    "variables": {
+        "SubID": "[subscription().subscriptionId]",
+        "logicAppApiVersion": "2017-07-01",
+        "webConnectionApiVersion": "2016-06-01",
+        "roleassignmentapiversion": "2022-04-01",
+        "workflowapiversion": "2019-05-01",
+        "connections_arm_ID": "[concat('/subscriptions/', variables('subID'), '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Web/connections/arm')]",
+        //"connectionID": "[concat('/subscriptions/', variables('subID'), '/providers/Microsoft.Web/', parameters('location'), '/managedApis/arm')]",
+        "apiconnectionID": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', parameters('location'), 'arm')]",
+        "xmsapiversion": "2016-06-01",
+        "tagContributor": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '4a9ae827-6dc8-4573-8ac7-8239d42aa03f')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "[variables('webConnectionApiVersion')]",
+            "name": "[parameters('connections_arm_name')]",
+            "location": "[parameters('location')]",
+            "kind": "V1",
+            "properties": {
+                "displayName": "[parameters('connections_arm_displayname')]",
+                "customParameterValues": {},
+                "parameterValueType": "Alternative",
+                "api": {
+                    "name": "[parameters('connections_arm_name')]",
+                    "displayName": "Azure Resource Manager",
+                    "description": "Azure Resource Manager exposes the APIs to manage all of your Azure resources.",
+                    "iconUri": "[concat('https://connectoricons-prod.azureedge.net/laborbol/fixes/path-traversal/1.0.1552.2695/arm/icon.png')]",
+                    "brandColor": "#003056",
+                    "id": "[variables('apiconnectionID')]",
+                    "type": "Microsoft.Web/locations/managedApis"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "[variables('logicAppApiVersion')]",
+            "name": "[parameters('logicAppName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/connections',parameters('connections_arm_name'))]"
+            ],
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        },
+                        "SubscriptionID": {
+                            "defaultValue": "[variables('subID')]",
+                            "type": "String"
+                        }
+                    },
+                    "triggers": {
+                        "Recurrence": {
+                            "recurrence": {
+                                "frequency": "Week",
+                                "interval": 3
+                            },
+                            "evaluatedRecurrence": {
+                                "frequency": "Week",
+                                "interval": 3
+                            },
+                            "type": "Recurrence"
+                        }
+                    },
+                    "actions": {
+                        "ForEach": {
+                            "actions": {
+                                "ConstructAPIEndpoint": {
+                                    "inputs": "@concat('https://management.azure.com',body('ParseJSON')?['id'],'/providers/Microsoft.Resources/tags/default?api-version=2021-04-01')",
+                                    "runAfter": {
+                                        "FormatTags": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Compose"
+                                },
+                                "FormatTags": {
+                                    "inputs": {
+                                        "properties": {
+                                            "tags": {
+                                                "CreatedOnDate": "@{body('ParseJSON')?['createdTime']}",
+                                                "ModifiedOnDate": "@{body('ParseJSON')?['changedTime']}"
+                                            }
+                                        }
+                                    },
+                                    "runAfter": {
+                                        "ParseJSON": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Compose"
+                                },
+                                "ParseJSON": {
+                                    "inputs": {
+                                        "content": {
+                                            "changedTime": "@{items('ForEach')?['changedTime']}",
+                                            "createdTime": "@{items('ForEach')?['createdTime']}",
+                                            "id": "@{items('ForEach')?['id']}",
+                                            "location": "@{items('ForEach')?['location']}",
+                                            "name": "@{items('ForEach')?['name']}",
+                                            "provider": "@split(items('ForEach')?['id'], '/')?[6]",
+                                            "resourcegroup": "@split(items('ForEach')?['id'], '/')?[4]",
+                                            "shortId": "@concat(split(items('ForEach')?['id'], '/')?[7], '/', split(items('ForEach')?['id'], '/')?[8])",
+                                            "subscription": "@split(items('ForEach')?['id'], '/')?[2]",
+                                            "type": "@{items('ForEach')?['type']}"
+                                        },
+                                        "schema": {
+                                            "properties": {
+                                                "changedTime": {
+                                                    "type": "string"
+                                                },
+                                                "createdTime": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "location": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "provider": {
+                                                    "type": "string"
+                                                },
+                                                "resourcegroup": {
+                                                    "type": "string"
+                                                },
+                                                "shortId": {
+                                                    "type": "string"
+                                                },
+                                                "subscription": {
+                                                    "type": "string"
+                                                },
+                                                "tags": {
+                                                    "properties": {},
+                                                    "type": "object"
+                                                },
+                                                "type": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "runAfter": {},
+                                    "type": "ParseJson"
+                                },
+                                "WriteTags": {
+                                    "inputs": {
+                                        "authentication": {
+                                            "type": "ManagedServiceIdentity"
+                                        },
+                                        "body": "@outputs('FormatTags')",
+                                        "method": "PUT",
+                                        "uri": "@{outputs('ConstructAPIEndpoint')}"
+                                    },
+                                    "runAfter": {
+                                        "ConstructAPIEndpoint": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Http"
+                                }
+                            },
+                            "foreach": "@body('List_resources_by_subscription')?['value']",
+                            "runAfter": {
+                                "List_resources_by_subscription": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Foreach"
+                        },
+                        "ForEach-rg": {
+                            "actions": {
+                                "ConstructAPIEndpoint-rg": {
+                                    "inputs": "@concat('https://management.azure.com/subscriptions/',split(items('ForEach-rg')?['id'], '/')?[2],'/resourcegroups/',split(items('ForEach-rg')?['id'], '/')?[4],'/providers/Microsoft.Resources/tags/default?api-version=2021-04-01')",
+                                    "runAfter": {
+                                        "FormatTags-rg": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Compose"
+                                },
+                                "FormatTags-rg": {
+                                    "inputs": {
+                                        "Operation": "Merge",
+                                        "properties": {
+                                            "tags": {
+                                                "CreatedOnDate": "@{body('ParseJSON-rg')?['createdTime']}",
+                                                "ModifiedOnDate": "@{body('ParseJSON-rg')?['changedTime']}"
+                                            }
+                                        }
+                                    },
+                                    "runAfter": {
+                                        "ParseJSON-rg": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Compose"
+                                },
+                                "ParseJSON-rg": {
+                                    "inputs": {
+                                        "content": {
+                                            "changedTime": "@{items('ForEach-rg')?['changedTime']}",
+                                            "createdTime": "@{items('ForEach-rg')?['createdTime']}",
+                                            "id": "@{items('ForEach-rg')?['id']}",
+                                            "location": "@{items('ForEach-rg')?['location']}",
+                                            "name": "@{items('ForEach-rg')?['name']}",
+                                            "provider": "@split(items('ForEach-rg')?['id'], '/')?[6]",
+                                            "subscription": "@split(items('ForEach-rg')?['id'], '/')?[2]",
+                                            "type": "@{items('ForEach-rg')?['type']}"
+                                        },
+                                        "schema": {
+                                            "properties": {
+                                                "changedTime": {
+                                                    "type": "string"
+                                                },
+                                                "createdTime": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "location": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "runAfter": {},
+                                    "type": "ParseJson"
+                                },
+                                "WriteTags-rg": {
+                                    "inputs": {
+                                        "authentication": {
+                                            "type": "ManagedServiceIdentity"
+                                        },
+                                        "body": "@outputs('FormatTags-rg')",
+                                        "method": "PATCH",
+                                        "uri": "@{outputs('ConstructAPIEndpoint-rg')}"
+                                    },
+                                    "runAfter": {
+                                        "ConstructAPIEndpoint-rg": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Http"
+                                }
+                            },
+                            "foreach": "@body('List_resource_groups')?['value']",
+                            "runAfter": {
+                                "List_resource_groups": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Foreach"
+                        },
+                        "List_resource_groups": {
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['arm']['connectionId']"
+                                    }
+                                },
+                                "method": "get",
+                                "path": "/subscriptions/@{encodeURIComponent(parameters('SubscriptionID'))}/resourcegroups",
+                                "queries": {
+                                    "$expand": "createdTime,changedTime",
+                                    "x-ms-api-version": "[variables('xmsapiversion')]"
+                                }
+                            },
+                            "runAfter": {},
+                            "type": "ApiConnection"
+                        },
+                        "List_resources_by_subscription": {
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['arm']['connectionId']"
+                                    }
+                                },
+                                "method": "get",
+                                "path": "/subscriptions/@{encodeURIComponent(parameters('SubscriptionID'))}/resources",
+                                "queries": {
+                                    "$expand": "createdTime,changedTime",
+                                    "$filter": "resourceType ne 'Microsoft.Network/privateDnsZones/virtualNetworkLinks'\nand\nresourceType ne 'Microsoft.Compute/virtualMachines/extensions'\nand\nresourceType ne 'Microsoft.HybridCompute/machines/extensions'",
+                                    "x-ms-api-version": "[variables('xmsapiversion')]"
+                                }
+                            },
+                            "runAfter": {},
+                            "type": "ApiConnection"
+                        }
+                    },
+                    "outputs": {}
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "arm": {
+                                "connectionId": "[variables('connections_arm_id')]",
+                                "connectionName": "arm",
+                                "connectionProperties": {
+                                    "authentication": {
+                                        "type": "ManagedServiceIdentity"
+                                    }
+                                },
+                                "id": "[variables('apiconnectionID')]"
+                            }
+                        }
+                    },
+                    "SubscriptionID": {
+                        "Value": "[variables('subID')]",
+                        "type": "String"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2021-04-01",
+            "name": "logicAppRoleAssignment",
+            "dependsOn": [
+                "[resourceId('Microsoft.Logic/workflows',parameters('logicAppName'))]"
+            ],
+            "subscriptionId": "[parameters('roleAssignmentSubID')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "resources": [
+                        {
+                            "type": "Microsoft.Authorization/roleAssignments",
+                            "apiVersion": "[variables('roleassignmentapiversion')]",
+                            "name": "[parameters('roleNameGuid')]",
+                            "properties": {
+                                "roleDefinitionId": "[variables('tagContributor')]",
+                                "principalId": "[reference(resourceId('Microsoft.Logic/workflows', parameters('logicAppName')), variables('workflowapiversion'), 'full').identity.principalId]",
+                                "principalType": "ServicePrincipal"
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}
