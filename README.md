@@ -15,3 +15,8 @@ Many organizations struggle with tracking resource sprawl in Azure.  In many cas
 * Will error on resources that do not support tags
     * There is a filter in the Logic App ARM Connector to filter out resources that do not support tags to prevent these errors.  If you are getting errors on certain resources, check if the resource supports tags and if not, add to the filter.
 
+### Installation with Azure Portal
+
+Click the Deploy To Azure button below.
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https://raw.githubusercontent.com/cjasset/LogicApp-AddCreatedOnDateTag/main/LogicApp-AddCreatedOnDateTag.json)
