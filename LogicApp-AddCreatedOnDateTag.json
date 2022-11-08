@@ -37,7 +37,7 @@
         "webConnectionApiVersion": "2016-06-01",
         "roleassignmentapiversion": "2022-04-01",
         "workflowapiversion": "2019-05-01",
-        "connections_arm_ID": "[concat('/subscriptions/', variables('subID'), '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Web/connections/arm')]",
+        "connections_arm_ID": "[concat('/subscriptions/', variables('subID'), '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Web/connections/', parameters('connections_arm_name'))]",
         //"connectionID": "[concat('/subscriptions/', variables('subID'), '/providers/Microsoft.Web/', parameters('location'), '/managedApis/arm')]",
         "apiconnectionID": "[subscriptionResourceId('Microsoft.Web/locations/managedApis', parameters('location'), 'arm')]",
         "xmsapiversion": "2016-06-01",
@@ -348,7 +348,7 @@
                         "value": {
                             "arm": {
                                 "connectionId": "[variables('connections_arm_id')]",
-                                "connectionName": "arm",
+                                "connectionName": "[parameters('connections_arm_name')]",
                                 "connectionProperties": {
                                     "authentication": {
                                         "type": "ManagedServiceIdentity"
