@@ -120,6 +120,7 @@
                                 },
                                 "FormatTags": {
                                     "inputs": {
+                                        "Operation": "Merge",
                                         "properties": {
                                             "tags": {
                                                 "CreatedOnDate": "@{body('ParseJSON')?['createdTime']}",
@@ -197,7 +198,7 @@
                                             "type": "ManagedServiceIdentity"
                                         },
                                         "body": "@outputs('FormatTags')",
-                                        "method": "PUT",
+                                        "method": "PATCH",
                                         "uri": "@{outputs('ConstructAPIEndpoint')}"
                                     },
                                     "runAfter": {
